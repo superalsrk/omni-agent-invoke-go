@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-31T13:50:11.834Z",
+  "language": "Go",
+  "provider": "codex",
+  "kernel": "existing",
+  "runs": [
+    {
+      "mode": "canonical",
+      "frames": 21,
+      "terminal": "completed",
+      "receiptLookup": true,
+      "replay": true,
+      "consumedCursor": true
+    },
+    {
+      "mode": "native",
+      "frames": 25,
+      "terminal": "completed",
+      "receiptLookup": true,
+      "replay": true,
+      "consumedCursor": true
+    }
+  ],
+  "verified": true,
+  "ipcVersion": 1
+}

@@ -1,0 +1,23 @@
+{
+  "schema": "octo.context-envelope/v3",
+  "items": [
+    {
+      "namespace": "octo.content",
+      "name": "inline",
+      "payload": {
+        "entries": [
+          {
+            "text": "This application is a Go developer tool."
+          }
+        ]
+      }
+    },
+    {
+      "namespace": "octo.execution",
+      "name": "limits",
+      "payload": {
+        "run_timeout_ms": 60000
+      }
+    }
+  ]
+}

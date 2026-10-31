@@ -1,0 +1,39 @@
+{
+  "revision": 1,
+  "scope": "Kernel IPC identity declarations and RPC method names; not the complete upstream schema",
+  "ipcVersion": 1,
+  "runVersion": 7,
+  "contextSchema": "octo.context-envelope/v3",
+  "protocolModes": [
+    "canonical",
+    "native"
+  ],
+  "lookupFields": [
+    "run_id",
+    "invocation_id",
+    "agent_session_id",
+    "session_generation",
+    "protocol_mode"
+  ],
+  "runRefFields": [
+    "run_id",
+    "invocation_id",
+    "agent_session_id",
+    "session_generation",
+    "protocol_mode",
+    "kernel_instance_id",
+    "stream_id",
+    "protocol"
+  ],
+  "methods": {
+    "status": "status",
+    "list": "adapter.list",
+    "invoke": "agent_run.invoke",
+    "get": "agent_run.get",
+    "subscribe": "agent_run.subscribe",
+    "cancel": "agent_run.cancel",
+    "respond": "agent_run.respond",
+    "respondNative": "agent_run.native.respond"
+  },
+  "source": "https://github.com/Mininglamp-OSS/octo-runtime/blob/main/docs/en/reference/kernel-ipc.md"
+}

@@ -1,0 +1,29 @@
+{
+  "protocol_mode": "canonical",
+  "inputs": [
+    {
+      "type": "text",
+      "text": "Reply with OK without using tools."
+    }
+  ],
+  "contexts": {
+    "schema": "octo.context-envelope/v3",
+    "items": [
+      {
+        "namespace": "octo.execution",
+        "name": "adapter",
+        "payload": {
+          "type": "openclaw",
+          "provider_agent_id": "main"
+        }
+      },
+      {
+        "namespace": "octo.security",
+        "name": "approval_policy",
+        "payload": {
+          "mode": "ask"
+        }
+      }
+    ]
+  }
+}
