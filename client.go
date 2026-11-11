@@ -21,7 +21,7 @@ import (
 const maxLine = 42_008_576
 const maxRequest = 33_554_432
 
-type Context map[string]any
+type AgentEnv map[string]any
 type Input map[string]any
 type Frame map[string]any
 
@@ -179,65 +179,25 @@ func validateSnapshot(s Snapshot) error {
 	return nil
 }
 
-// NewInput merges explicit business context with the selected Adapter and ask policy.
-func NewInput(adapter, prompt string, mode Mode, ctx Context) (Input, error) {
-	if adapter == "" || prompt == "" || (mode != Canonical && mode != Native) {
+// NewInput snapshots complete caller-owned inputs and agentEnv without merging defaults.
+func NewInput(inputs []any, agentEnv AgentEnv, mode Mode) (Input, error) {
+	if len(inputs) == 0 || agentEnv == nil || (mode != Canonical && mode != Native) {
 		return nil, failure("INVALID_INPUT")
 	}
-	items := []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": adapter}}, map[string]any{"namespace": "octo.security", "name": "approval_policy", "payload": map[string]any{"mode": "ask"}}}
-	if ctx != nil {
-		raw, err := json.Marshal(ctx)
-		if err != nil {
-			return nil, failure("INVALID_CONTEXT")
-		}
-		var normalized map[string]any
-		if decode(raw, &normalized) != nil || len(normalized) != 2 || normalized["schema"] != "octo.context-envelope/v3" {
-			return nil, failure("INVALID_CONTEXT")
-		}
-		supplied, ok := normalized["items"].([]any)
-		if !ok {
-			return nil, failure("INVALID_CONTEXT")
-		}
-		seen := map[string]bool{}
-		for _, raw := range supplied {
-			item, ok := raw.(map[string]any)
-			if !ok {
-				return nil, failure("INVALID_CONTEXT")
-			}
-			ns, nsOK := item["namespace"].(string)
-			name, nameOK := item["name"].(string)
-			payload, payloadOK := item["payload"].(map[string]any)
-			if !nsOK || !nameOK || ns == "" || name == "" || !payloadOK {
-				return nil, failure("INVALID_CONTEXT")
-			}
-			key := ns + "/" + name
-			if seen[key] {
-				return nil, failure("INVALID_CONTEXT")
-			}
-			seen[key] = true
-			if key == "octo.execution/adapter" && payload["type"] != adapter {
-				return nil, failure("CONTEXT_ADAPTER_MISMATCH")
-			}
-			replaced := false
-			for i, v := range items {
-				old := v.(map[string]any)
-				if old["namespace"] == ns && old["name"] == name {
-					items[i] = item
-					replaced = true
-					break
-				}
-			}
-			if !replaced {
-				items = append(items, item)
-			}
-		}
+	raw, err := json.Marshal(Input{"runId": id(), "invocationId": id(), "sessionId": id(), "sessionGeneration": 0, "protocol_mode": mode, "inputs": inputs, "agentEnv": agentEnv})
+	if err != nil {
+		return nil, err
 	}
-	envelope := map[string]any{"schema": "octo.context-envelope/v3", "items": items}
-	raw, _ := json.Marshal(envelope)
-	if len(items) > 32 || len(raw) > 65536 {
-		return nil, failure("INVALID_CONTEXT")
+	var input Input
+	if err = decode(raw, &input); err != nil {
+		return nil, err
 	}
-	return Input{"runId": id(), "invocationId": id(), "sessionId": id(), "sessionGeneration": 0, "protocol_mode": mode, "inputs": []any{map[string]any{"type": "text", "text": prompt}}, "contexts": envelope}, nil
+	return input, nil
+}
+
+func textInput(adapter, prompt string, mode Mode) (Input, error) {
+	return NewInput([]any{map[string]any{"type": "text", "text": prompt}},
+		AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": adapter}}}}, mode)
 }
 
 // Client attaches to a host-owned Kernel. Close stops IO without cancelling runs.
@@ -388,7 +348,7 @@ func (c *Client) Status(ctx context.Context) (map[string]any, error) {
 	}
 	s, err := value[map[string]any](raw)
 	instance, _ := s["kernel_instance_id"].(string)
-	if err == nil && (number(s["ipc_version"]) != 1 || instance == "") {
+	if err == nil && (number(s["ipc_version"]) != 2 || instance == "") {
 		err = failure("INVALID_RESPONSE")
 	}
 	return s, err
@@ -687,19 +647,13 @@ func (s *Subscription) Next() (Frame, error) {
 	}
 }
 func (c *Client) Invoke(adapter, prompt string) (*Subscription, error) {
-	return c.invoke(adapter, prompt, Canonical, nil)
-}
-func (c *Client) InvokeWithContext(adapter, prompt string, ctx Context) (*Subscription, error) {
-	return c.invoke(adapter, prompt, Canonical, ctx)
+	return c.invoke(adapter, prompt, Canonical)
 }
 func (c *Client) InvokeNative(adapter, prompt string) (*Subscription, error) {
-	return c.invoke(adapter, prompt, Native, nil)
+	return c.invoke(adapter, prompt, Native)
 }
-func (c *Client) InvokeNativeWithContext(adapter, prompt string, ctx Context) (*Subscription, error) {
-	return c.invoke(adapter, prompt, Native, ctx)
-}
-func (c *Client) invoke(adapter, prompt string, mode Mode, ctx Context) (*Subscription, error) {
-	input, err := NewInput(adapter, prompt, mode, ctx)
+func (c *Client) invoke(adapter, prompt string, mode Mode) (*Subscription, error) {
+	input, err := textInput(adapter, prompt, mode)
 	if err != nil {
 		return nil, err
 	}

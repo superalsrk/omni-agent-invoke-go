@@ -6,7 +6,7 @@
       "text": "Reply with OK without using tools."
     }
   ],
-  "contexts": {
+  "agentEnv": {
     "schema": "octo.context-envelope/v3",
     "items": [
       {

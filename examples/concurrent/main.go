@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	omni "github.com/superalsrk/omni-agent-invoke-go"
@@ -13,8 +14,12 @@ func run(client *omni.Client, adapter string) error {
 	var stream *omni.Subscription
 	var err error
 	if adapter == "openclaw" {
-		ctx := omni.Context{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "openclaw", "provider_agent_id": "main"}}}}
-		stream, err = client.InvokeWithContext(adapter, "Reply with OK without using tools.", ctx)
+		ctx := omni.AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "openclaw", "provider_agent_id": "main"}}}}
+		input, buildErr := omni.NewInput([]any{map[string]any{"type": "text", "text": "Reply with OK without using tools."}}, ctx, omni.Canonical)
+		if buildErr != nil {
+			return buildErr
+		}
+		stream, err = client.InvokeInput(context.Background(), input)
 	} else {
 		stream, err = client.Invoke(adapter, "Reply with OK without using tools.")
 	}

@@ -4,7 +4,7 @@
 
 Octo Runtime is an independently installed local service. Applications install and start it with `npm install -g @mininglamp-oss/octo-runtime` and `octo-runtime executor-kernel start`. These clients attach to the actual Kernel endpoint. They do not import Runtime source, link its SDK, start a worker, or own its process.
 
-The implementation targets Kernel IPC v1, Run contract v7 and Context envelope `octo.context-envelope/v3`. See the [public Kernel IPC reference](https://github.com/Mininglamp-OSS/octo-runtime/blob/main/docs/en/reference/kernel-ipc.md) and [Context catalog](https://github.com/Mininglamp-OSS/octo-runtime/blob/main/docs/en/reference/contexts.md).
+The implementation targets Kernel IPC v2, Run contract v7 and AgentEnv in the `octo.context-envelope/v3` format. See the [public Kernel IPC reference](https://github.com/Mininglamp-OSS/octo-runtime/blob/main/docs/en/reference/kernel-ipc.md) and [Context catalog](https://github.com/Mininglamp-OSS/octo-runtime/blob/main/docs/en/reference/contexts.md).
 
 ## Generated and Handwritten Code
 
@@ -30,7 +30,7 @@ A response must match the request ID and contain exactly one of `result` or `err
 
 | Method | Params | Result |
 | --- | --- | --- |
-| `status` | `{}` | Kernel instance, worker state and readiness |
+| `status` | `{}` | Kernel instance, readiness and optional service process snapshots |
 | `adapter.list` | `{}` | Registered Adapter metadata |
 | `agent_run.invoke` | `{input, kernel_instance_id?}` | `{kernel_instance_id, receipt}` |
 | `agent_run.get` | `{key, kernel_instance_id?}` | Original ref, retained range, optional terminal frame |
@@ -66,7 +66,7 @@ New convenience invocations get fresh execution, invocation and session IDs. Reu
 
 ## Canonical and Native Modes
 
-The context-free and context-aware `invoke` methods select **canonical** mode. Their explicitly named native variants select **native** mode. Full-input APIs use `input.protocol_mode` explicitly. Both modes yield complete HostFrames:
+The `invoke` methods select **canonical** mode. Their explicitly named native variants select **native** mode. Full-input APIs default to native when `protocol_mode` is omitted. Both modes yield complete HostFrames:
 
 - Canonical: `{kind:"canonical", event:{...}, ...identity, seq}`. Read normalized event content from `event`.
 - Native: `{kind:"native", messageKind, payload:{...}, ...identity, seq}`. Preserve Provider-specific details in `payload`.
@@ -74,23 +74,25 @@ The context-free and context-aware `invoke` methods select **canonical** mode. T
 
 A Provider payload containing the word "completed" is not an execution terminal. Inspect the control frame. DeepSeek Harness uses Adapter ID `dsh`; use canonical mode unless the installed Adapter advertises native support. Registered metadata does not prove installation, authentication, model availability or equivalent capabilities.
 
-## Context and Inputs
+## Inputs and AgentEnv
 
-A Context is an execution/background envelope, not a cancellation token:
+The invocation contract follows upstream commit `c9d3bb6a642abce3177ac28cf9f26993909c3d32` (#352). Only `inputs` and `agentEnv` are required:
 
 ```json
 {
-  "schema": "octo.context-envelope/v3",
-  "items": [
-    {"namespace":"octo.execution","name":"limits","payload":{"run_timeout_ms":60000}},
-    {"namespace":"octo.content","name":"inline","payload":{"entries":[{"text":"Background material"}]}}
-  ]
+  "inputs": [
+    {"type":"text","text":"Application instructions and caller-owned history"},
+    {"type":"text","text":"Current question"}
+  ],
+  "agentEnv": {"schema":"octo.context-envelope/v3","items":[]}
 }
 ```
 
-The typed examples show importing `Context` or `ContextEnvelope` from each library. Rust's Context is a JSON value alias; Go's is a map type; Python exposes a TypedDict; TypeScript exposes structural types. Explicit items merge with the selected Adapter and default `ask` approval policy. Duplicate namespace/name pairs and conflicting Adapter types are rejected; OpenClaw's `provider_agent_id` is retained. Context has at most 32 items and 65,536 serialized UTF-8 bytes. Additional Adapter-specific semantics remain the Kernel's responsibility.
+The caller supplies the complete ordered text/image parts. The client snapshots and forwards them without assembling business context or adding prompts. Execution settings use `agentEnv`, which retains the upstream v3 envelope format (at most 32 items and 65,536 UTF-8 bytes). Empty items are valid; the Runtime selects its default Adapter. Private payloads and item order pass through unchanged. An explicit Adapter, MCP, environment variables and execution policy belong here.
 
-`inputs` contains ordered text and image parts. Images use PNG, JPEG or WebP, at most 2 MiB each. An image part contains `type`, `mimeType`, base64 `data`, original `byteSize` and a lowercase SHA-256 digest. The image helpers compute these from caller-supplied bytes. They do not fetch URLs, read files implicitly, or turn images into a text fallback. The selected Provider/model must support images.
+There is no `contexts` field or compatibility alias. Removed `controlInstructions` fields and `octo.control/instructions` items must be replaced by ordinary text parts in `inputs`. The client does not merge default items or add an approval policy. Text convenience calls only construct one text part and an Adapter item. In playboard, `--agent-env` with `--prompt` supplies the entire environment; `--adapter` is used only when no environment file is supplied.
+
+Images use PNG, JPEG or WebP, at most 2 MiB each, with `mimeType`, base64 `data`, `byteSize` and lowercase `sha256`. Image helpers compute metadata from caller-owned bytes. Provider support is required.
 
 ## Recovery and Cancellation
 

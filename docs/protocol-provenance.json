@@ -1,6 +1,6 @@
 {
-  "contractRevision": 1,
-  "contractSHA256": "e37f9facc6af9737602a06c31801c76efbd39ffa4fe6f96ac220d0c841c35176",
+  "contractRevision": 2,
+  "contractSHA256": "dd65e267834a6aca67410a4b268f915b485c9355c3a027225391f06c31012adc",
   "artifact": "protocol_generated.go",
   "generatedIn": "temporary build workspace",
   "runtimeSchemaDependency": false,

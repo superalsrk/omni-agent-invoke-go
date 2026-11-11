@@ -2,14 +2,10 @@
   "schema": "octo.context-envelope/v3",
   "items": [
     {
-      "namespace": "octo.content",
-      "name": "inline",
+      "namespace": "octo.execution",
+      "name": "adapter",
       "payload": {
-        "entries": [
-          {
-            "text": "This application is a Go developer tool."
-          }
-        ]
+        "type": "codex"
       }
     },
     {

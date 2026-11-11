@@ -85,7 +85,7 @@ func TestSubmitRecoversLostAckWithoutResubmission(t *testing.T) {
 		mu.Unlock()
 		switch method {
 		case "status":
-			respond(conn, request, map[string]any{"ipc_version": 1, "kernel_instance_id": "kernel"})
+			respond(conn, request, map[string]any{"ipc_version": 2, "kernel_instance_id": "kernel"})
 		case "agent_run.invoke":
 			input := request["params"].(map[string]any)["input"].(map[string]any)
 			r := testRef()
@@ -104,7 +104,7 @@ func TestSubmitRecoversLostAckWithoutResubmission(t *testing.T) {
 	})
 	client := Attach(endpoint)
 	defer client.Close()
-	input, _ := NewInput("codex", "hello", Canonical, nil)
+	input, _ := textInput("codex", "hello", Canonical)
 	ref, err := client.Submit(context.Background(), input)
 	if err != nil {
 		t.Fatal(err)
@@ -179,17 +179,26 @@ func TestLostCancelAckIsNeverRetried(t *testing.T) {
 	default:
 	}
 }
-func TestInputContextAndImage(t *testing.T) {
-	ctx := Context{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "openclaw", "provider_agent_id": "main"}}}}
-	input, err := NewInput("openclaw", "hello", Native, ctx)
+func TestInputAgentEnvAndImage(t *testing.T) {
+	ctx := AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "openclaw", "provider_agent_id": "main"}}}}
+	input, err := NewInput([]any{map[string]any{"type": "text", "text": "hello"}}, ctx, Native)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if input["protocol_mode"] != Native {
+	if input["protocol_mode"] != string(Native) {
 		t.Fatal("mode")
 	}
-	if _, err = NewInput("codex", "hello", Canonical, ctx); code(err) != "CONTEXT_ADAPTER_MISMATCH" {
-		t.Fatal(err)
+	raw, _ := json.Marshal(input["agentEnv"])
+	expected, _ := json.Marshal(ctx)
+	if string(raw) != string(expected) {
+		t.Fatal("agentEnv changed")
+	}
+	if _, ok := input["contexts"]; ok {
+		t.Fatal("legacy contexts emitted")
+	}
+	ctx["items"] = []any{}
+	if len(input["agentEnv"].(map[string]any)["items"].([]any)) != 1 {
+		t.Fatal("aliased environment")
 	}
 	image, err := ImageInput([]byte("abc"), "image/png")
 	if err != nil || image["data"] != "YWJj" || image["sha256"] != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
@@ -201,6 +210,45 @@ func TestInputContextAndImage(t *testing.T) {
 		}
 	}
 }
+
+func TestCompleteInputPassesThrough(t *testing.T) {
+	for _, mode := range []Mode{Canonical, Native} {
+		t.Run(string(mode), func(t *testing.T) {
+			image, _ := ImageInput([]byte("abc"), "image/png")
+			parts := []any{map[string]any{"type": "text", "text": "Application instructions and history"}, image, map[string]any{"type": "text", "text": "Current question"}}
+			env := AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{
+				map[string]any{"namespace": "private.host", "name": "config", "payload": map[string]any{"nested": []any{1, true}}},
+				map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "openclaw", "provider_agent_id": "main"}},
+			}}
+			input, err := NewInput(parts, env, mode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input["runMetadata"] = map[string]any{"business": "caller-owned"}
+			expected, _ := json.Marshal(input)
+			captured := make(chan []byte, 1)
+			endpoint := testServer(t, func(conn net.Conn, request map[string]any) {
+				if request["method"] == "status" {
+					respond(conn, request, map[string]any{"ipc_version": 2, "kernel_instance_id": "kernel"})
+					return
+				}
+				sent := request["params"].(map[string]any)["input"]
+				raw, _ := json.Marshal(sent)
+				captured <- raw
+				json.NewEncoder(conn).Encode(map[string]any{"jsonrpc": "2.0", "id": request["id"], "error": map[string]any{"code": -32000, "message": "inspect request", "data": map[string]any{"code": "TEST_STOP"}}})
+			})
+			client := Attach(endpoint)
+			defer client.Close()
+			if _, err = client.Submit(context.Background(), input); code(err) != "TEST_STOP" {
+				t.Fatal(err)
+			}
+			if actual := <-captured; string(actual) != string(expected) {
+				t.Fatalf("request changed: %s", actual)
+			}
+		})
+	}
+}
+
 func TestMalformedResponseRejected(t *testing.T) {
 	for _, line := range []string{`{"jsonrpc":"2.0","id":"wrong","result":{}}`, `{"jsonrpc":"2.0","id":"id","result":{},"error":{}}`, `{"jsonrpc":"2.0","id":"id","result":{}} {}`} {
 		if _, err := answer([]byte(line), "id"); err == nil {

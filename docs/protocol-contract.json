@@ -1,7 +1,7 @@
 {
-  "revision": 1,
+  "revision": 2,
   "scope": "Kernel IPC identity declarations and RPC method names; not the complete upstream schema",
-  "ipcVersion": 1,
+  "ipcVersion": 2,
   "runVersion": 7,
   "contextSchema": "octo.context-envelope/v3",
   "protocolModes": [

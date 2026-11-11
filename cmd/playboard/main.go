@@ -52,7 +52,7 @@ func main() {
 }
 func run() (int, error) {
 	if len(os.Args) < 2 || os.Args[1] == "--help" {
-		fmt.Println("playboard <status|list|playboard|submit|get|subscribe|cancel|respond|native-respond> [options]\nUse --endpoint or OCTO_KERNEL_ENDPOINT. --mode canonical|native; --context supplies an Octo Context envelope.")
+		fmt.Println("playboard <status|list|playboard|submit|get|subscribe|cancel|respond|native-respond> [options]\nUse --endpoint or OCTO_KERNEL_ENDPOINT. --mode canonical|native; --agent-env supplies an AgentEnv envelope.")
 		return 0, nil
 	}
 	command := os.Args[1]
@@ -62,7 +62,7 @@ func run() (int, error) {
 	adapter := flags.String("adapter", "codex", "Adapter type, e.g. codex, claude-code, openclaw, dsh")
 	mode := flags.String("mode", "canonical", "canonical or native")
 	request := flags.String("request", "-", "full input JSON file")
-	contextFile := flags.String("context", "", "Context envelope JSON file with --prompt")
+	contextFile := flags.String("agent-env", "", "AgentEnv envelope JSON file with --prompt")
 	receipt := flags.String("receipt", "", "save accepted RunRef to a new file")
 	refFile := flags.String("ref", "", "saved RunRef JSON file")
 	after := flags.Int64("after", 0, "last consumed sequence")
@@ -99,16 +99,19 @@ func run() (int, error) {
 		var input omni.Input
 		var err error
 		if *prompt != "" {
-			var envelope omni.Context
+			var envelope omni.AgentEnv
 			if *contextFile != "" {
 				if err = read(*contextFile, &envelope); err != nil {
 					return 2, err
 				}
 			}
-			input, err = omni.NewInput(*adapter, *prompt, omni.Mode(*mode), envelope)
+			if envelope == nil {
+				envelope = omni.AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": *adapter}}}}
+			}
+			input, err = omni.NewInput([]any{map[string]any{"type": "text", "text": *prompt}}, envelope, omni.Mode(*mode))
 		} else {
 			if *contextFile != "" {
-				return 2, errors.New("--context requires --prompt")
+				return 2, errors.New("--agent-env requires --prompt")
 			}
 			err = read(*request, &input)
 		}

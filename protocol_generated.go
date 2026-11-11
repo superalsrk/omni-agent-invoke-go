@@ -1,4 +1,4 @@
-// Generated identity contract v1. SHA-256: e37f9facc6af9737602a06c31801c76efbd39ffa4fe6f96ac220d0c841c35176. MIT License.
+// Generated identity contract v2. SHA-256: dd65e267834a6aca67410a4b268f915b485c9355c3a027225391f06c31012adc. MIT License.
 package omni
 
 type Mode string

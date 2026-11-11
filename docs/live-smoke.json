@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-31T13:50:11.834Z",
+  "date": "2026-11-11T03:27:21.879Z",
   "language": "Go",
   "provider": "codex",
   "kernel": "existing",
@@ -10,17 +10,23 @@
       "terminal": "completed",
       "receiptLookup": true,
       "replay": true,
-      "consumedCursor": true
+      "consumedCursor": true,
+      "completeInputs": true,
+      "agentEnv": true,
+      "responseMarker": true
     },
     {
       "mode": "native",
-      "frames": 25,
+      "frames": 26,
       "terminal": "completed",
       "receiptLookup": true,
       "replay": true,
-      "consumedCursor": true
+      "consumedCursor": true,
+      "completeInputs": true,
+      "agentEnv": true,
+      "responseMarker": true
     }
   ],
   "verified": true,
-  "ipcVersion": 1
+  "ipcVersion": 2
 }

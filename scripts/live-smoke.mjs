@@ -28,13 +28,30 @@ try{
  assert.ok(adapters.some(adapter=>adapter.type==="codex"),"Codex Adapter is not registered");
  for(const mode of ["canonical","native"]){
   const receipt=join(directory,mode+"-receipt.json");
-  const frames=run("playboard",["--adapter","codex","--mode",mode,"--prompt",`Reply exactly ${marker} without using tools.`,"--timeout","60","--receipt",receipt]);
+  const request=join(directory,mode+"-request.json");
+  const input={
+   inputs:[
+    {type:"text",text:`The response token for this request is ${marker}.`},
+    {type:"text",text:"Reply with only the response token from the preceding input. Do not use tools."}
+   ],
+   agentEnv:{schema:"octo.context-envelope/v3",items:[
+    {namespace:"octo.execution",name:"adapter",payload:{type:"codex"}},
+    {namespace:"octo.execution",name:"workspace",payload:{path:directory}},
+    {namespace:"octo.execution",name:"limits",payload:{run_timeout_ms:60000}},
+    {namespace:"omni.smoke",name:"private_config",payload:{purpose:"execution passthrough"}}
+   ]},
+   protocol_mode:mode,
+   runMetadata:{test:"inputs-agentEnv-live-smoke"}
+  };
+  await writeFile(request,JSON.stringify(input)+"\n",{mode:0o600});
+  const frames=run("playboard",["--request",request,"--timeout","60","--receipt",receipt]);
   assert.equal(frames.at(-1)?.control?.state,"completed");
   assert.ok(frames.some(frame=>frame.kind===mode),mode+" output is missing");
   if(mode==="canonical"){
    const text=frames.filter(frame=>frame.kind==="canonical"&&frame.event?.type==="message.delta").map(frame=>frame.event.payload?.text||"").join("");
    assert.ok(text.includes(marker),"Canonical response marker is missing");
   }
+  if(mode==="native")assert.ok(frames.filter(frame=>frame.kind==="native").some(frame=>JSON.stringify(frame.payload).includes(marker)),"Native response marker is missing");
   const ref=JSON.parse(await readFile(receipt,"utf8"));
   const [snapshot]=run("get",["--ref",receipt]);
   assert.equal(snapshot.ref.run_id,ref.run_id);
@@ -42,7 +59,7 @@ try{
   const replay=run("subscribe",["--ref",receipt,"--after","0"]);
   assert.deepEqual(replay,frames,"Full replay must preserve the original frames");
   assert.deepEqual(run("subscribe",["--ref",receipt,"--after",String(snapshot.latest_seq)]),[]);
-  evidence.runs.push({mode,frames:frames.length,terminal:"completed",receiptLookup:true,replay:true,consumedCursor:true});
+  evidence.runs.push({mode,frames:frames.length,terminal:"completed",receiptLookup:true,replay:true,consumedCursor:true,completeInputs:true,agentEnv:true,responseMarker:true});
  }
  evidence.verified=true;
 }catch(error){evidence.error=error.message;process.exitCode=1;}

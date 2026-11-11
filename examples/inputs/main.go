@@ -17,15 +17,15 @@ func run() error {
 	native := flag.Bool("native", false, "use native output")
 	dry := flag.Bool("dry-run", false, "print constructed input without contacting Kernel")
 	flag.Parse()
-	ctx := omni.Context{"schema": "octo.context-envelope/v3", "items": []any{
-		map[string]any{"namespace": "octo.content", "name": "inline", "payload": map[string]any{"entries": []any{map[string]any{"text": "This is a Go input construction example."}}}},
+	ctx := omni.AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{
+		map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "codex"}},
 		map[string]any{"namespace": "octo.execution", "name": "limits", "payload": map[string]any{"run_timeout_ms": 60000}},
 	}}
 	mode := omni.Canonical
 	if *native {
 		mode = omni.Native
 	}
-	input, err := omni.NewInput("codex", "Reply with OK without using tools.", mode, ctx)
+	input, err := omni.NewInput([]any{map[string]any{"type": "text", "text": "This is a Go input construction example."}, map[string]any{"type": "text", "text": "Reply with OK without using tools."}}, ctx, mode)
 	if err != nil {
 		return err
 	}

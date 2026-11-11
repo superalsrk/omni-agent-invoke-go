@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,18 +11,20 @@ import (
 )
 
 func run() error {
-	business := omni.Context{"schema": "octo.context-envelope/v3", "items": []any{
-		map[string]any{"namespace": "octo.content", "name": "inline", "payload": map[string]any{"entries": []any{map[string]any{"text": "This is a Go context example."}}}},
+	business := omni.AgentEnv{"schema": "octo.context-envelope/v3", "items": []any{
+		map[string]any{"namespace": "octo.execution", "name": "adapter", "payload": map[string]any{"type": "codex"}},
 	}}
 	client := omni.Attach(os.Getenv("OCTO_KERNEL_ENDPOINT"))
 	defer client.Close()
-	// Business carries the Octo execution Context. InvokeInput also accepts a Go context for local IO.
-	stream, err := client.InvokeWithContext("codex", "Reply with OK without using tools.", business)
+	input, err := omni.NewInput([]any{map[string]any{"type": "text", "text": "This is a Go application."}, map[string]any{"type": "text", "text": "Reply with OK without using tools."}}, business, omni.Canonical)
+	if err != nil {
+		return err
+	}
+	stream, err := client.InvokeInput(context.Background(), input)
 	if err != nil {
 		return err
 	}
 	defer stream.Close()
-	// InvokeNativeWithContext selects native mode with the same business envelope.
 	for {
 		frame, err := stream.Next()
 		if err == io.EOF {
